@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { Session } from "./types.js";
 import type { ServerConfig } from "./types.js";
 import { loadBugReport } from "./tools/load.js";
+import { getOverview } from "./tools/overview.js";
+import { getVersions } from "./tools/versions.js";
 import type { BugReportStore } from "./archive/store.js";
 
 export function createServer(config: ServerConfig) {
@@ -26,6 +28,28 @@ export function createServer(config: ServerConfig) {
     "Load an existing istioctl bug-report archive (.tar.gz) or pre-extracted directory for analysis",
     { path: z.string().describe("Path to .tar.gz archive or pre-extracted directory") },
     async ({ path }) => loadBugReport({ path }, getStore, setStore, setSession),
+  );
+
+  server.tool(
+    "get_overview",
+    "Get a high-level overview of the loaded bug report: versions, pod counts, analyze result summary",
+    {},
+    async () => {
+      const store = getStore();
+      if (!store) return { content: [{ type: "text", text: "No bug report loaded. Use load_bug_report first." }], isError: true };
+      return getOverview(store);
+    },
+  );
+
+  server.tool(
+    "get_versions",
+    "Get the full version matrix (client, control plane, data plane) with skew detection",
+    {},
+    async () => {
+      const store = getStore();
+      if (!store) return { content: [{ type: "text", text: "No bug report loaded. Use load_bug_report first." }], isError: true };
+      return getVersions(store);
+    },
   );
 
   return { server, getSession, getStore };
