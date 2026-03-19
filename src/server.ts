@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Session } from "./types.js";
 import type { ServerConfig } from "./types.js";
 import { loadBugReport } from "./tools/load.js";
+import { collectBugReport } from "./tools/collect.js";
 import { getOverview } from "./tools/overview.js";
 import { getVersions } from "./tools/versions.js";
 import { getAnalyzeResults } from "./tools/analyze-results.js";
@@ -30,6 +31,21 @@ export function createServer(config: ServerConfig) {
   });
 
   // === Setup Tools ===
+
+  server.tool(
+    "collect_bug_report",
+    "Run istioctl bug-report against the current cluster and load the results for analysis",
+    {
+      context: z.string().optional().describe("Kubeconfig context to use"),
+      namespaces: z.string().optional().describe("Comma-separated namespaces to include"),
+      exclude: z.string().optional().describe("Comma-separated namespaces to exclude"),
+      istioctl_path: z.string().optional().describe("Path to existing istioctl binary"),
+      istioctl_source: z.enum(["oss", "solo"]).optional().describe("Download source: 'oss' (istio.io) or 'solo' (Solo.io builds)"),
+      istio_version: z.string().optional().describe("Istio version to download (e.g. '1.24.2'). Auto-detected from cluster if omitted."),
+      outputDir: z.string().optional().describe("Output directory for the archive"),
+    },
+    async (params) => collectBugReport(params, getStore, setStore, setSession),
+  );
 
   server.tool(
     "load_bug_report",
