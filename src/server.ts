@@ -9,6 +9,7 @@ import { getAnalyzeResults } from "./tools/analyze-results.js";
 import { getClusterResources } from "./tools/cluster-resources.js";
 import { getProxyConfig } from "./tools/proxy-config.js";
 import { getLogs } from "./tools/logs.js";
+import { getIstiodDebug } from "./tools/istiod-debug.js";
 import type { BugReportStore } from "./archive/store.js";
 
 export function createServer(config: ServerConfig) {
@@ -96,6 +97,21 @@ export function createServer(config: ServerConfig) {
       const store = getStore();
       if (!store) return { content: [{ type: "text", text: "No bug report loaded." }], isError: true };
       return getLogs(store, params);
+    },
+  );
+
+  server.tool(
+    "get_istiod_debug",
+    "Get data from istiod debug endpoints (syncz, configz, mesh, push_status, adsz, endpointz, etc.)",
+    {
+      endpoint: z.string().describe("Debug endpoint name (e.g. syncz, configz, mesh). Empty to list available."),
+      namespace: z.string().optional().describe("Istiod namespace (default: first found)"),
+      pod: z.string().optional().describe("Specific istiod pod name"),
+    },
+    async (params) => {
+      const store = getStore();
+      if (!store) return { content: [{ type: "text", text: "No bug report loaded." }], isError: true };
+      return getIstiodDebug(store, params);
     },
   );
 
