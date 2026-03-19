@@ -12,6 +12,8 @@ import { getLogs } from "./tools/logs.js";
 import { getIstiodDebug } from "./tools/istiod-debug.js";
 import type { BugReportStore } from "./archive/store.js";
 import { listFiles, getRawFile } from "./resources/archive-resource.js";
+import { runDiagnostics } from "./tools/diagnostics.js";
+import { findErrors } from "./tools/find-errors.js";
 
 export function createServer(config: ServerConfig) {
   let currentSession: Session | null = null;
@@ -135,6 +137,33 @@ export function createServer(config: ServerConfig) {
       const store = getStore();
       if (!store) return { content: [{ type: "text", text: "No bug report loaded. Use load_bug_report first." }], isError: true };
       return getVersions(store);
+    },
+  );
+
+  server.tool(
+    "run_diagnostics",
+    "Run built-in diagnostic templates against the loaded bug report to find known issues",
+    {
+      categories: z.string().optional().describe("Comma-separated categories to check (e.g. 'version,config'). Omit for all."),
+    },
+    async (params) => {
+      const store = getStore();
+      if (!store) return { content: [{ type: "text", text: "No bug report loaded." }], isError: true };
+      return runDiagnostics(store, params);
+    },
+  );
+
+  server.tool(
+    "find_errors",
+    "Scan all logs for error/warning lines, deduplicate by pattern, group by component",
+    {
+      component: z.enum(["proxy", "istiod", "operator", "cni", "all"]).optional().describe("Component to scan (default: all)"),
+      keyword: z.string().optional().describe("Filter to lines containing this keyword"),
+    },
+    async (params) => {
+      const store = getStore();
+      if (!store) return { content: [{ type: "text", text: "No bug report loaded." }], isError: true };
+      return findErrors(store, params);
     },
   );
 
