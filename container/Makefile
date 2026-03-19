@@ -57,7 +57,7 @@ install-mcp:
 		npm ci && \
 		npm run build && \
 		npm pack && \
-		npm install -g istio-bug-report-analyzer-mcp-*.tgz && \
+		sudo npm install -g istio-bug-report-analyzer-mcp-*.tgz && \
 		rm -f istio-bug-report-analyzer-mcp-*.tgz && \
 		echo "Installed! Verifying..." && \
 		which istio-bug-report-analyzer-mcp && \
