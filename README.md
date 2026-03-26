@@ -12,24 +12,13 @@ An MCP (Model Context Protocol) server that analyzes `istioctl bug-report` archi
 
 ## Installation
 
+One command installs the MCP server, registers it with Claude Code, and adds the `/istio-report-assessment` skill:
+
 ```bash
-npm install -g istio-bug-report-analyzer-mcp
+npx istio-bug-report-analyzer-mcp@latest setup
 ```
 
-## Claude Code Configuration
-
-Add to your Claude Code settings (`~/.claude/settings.json`):
-
-```json
-{
-  "mcpServers": {
-    "istio-bug-report-analyzer": {
-      "command": "npx",
-      "args": ["istio-bug-report-analyzer-mcp"]
-    }
-  }
-}
-```
+Then restart Claude Code. You're ready to go.
 
 ## Available Tools
 
