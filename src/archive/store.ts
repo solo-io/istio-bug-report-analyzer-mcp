@@ -7,6 +7,8 @@ import type {
   ProxyInfo,
   IstiodInfo,
   ParsedResource,
+  ProxyType,
+  DataPlaneModeInfo,
 } from "../types.js";
 
 export class BugReportStore {
@@ -17,6 +19,7 @@ export class BugReportStore {
   private proxies = new Map<string, ProxyInfo[]>();
   private istiodPods = new Map<string, IstiodInfo[]>();
   private clusterResources: ParsedResource[] = [];
+  private cachedModeInfo: DataPlaneModeInfo | null = null;
 
   private constructor(index: ArchiveIndex) {
     this.index = index;
@@ -98,6 +101,12 @@ export class BugReportStore {
     }
   }
 
+  private classifyProxyType(podName: string): ProxyType {
+    if (podName.startsWith("ztunnel-")) return "ztunnel";
+    if (podName.includes("waypoint")) return "waypoint";
+    return "sidecar";
+  }
+
   private async loadProxyInfo(namespace: string, pod: string): Promise<ProxyInfo> {
     const prefix = `proxies/${namespace}/${pod}`;
     const configDumpRaw = await this.readFileContent(`${prefix}/config_dump?include_eds`);
@@ -105,6 +114,7 @@ export class BugReportStore {
     return {
       namespace,
       podName: pod,
+      proxyType: this.classifyProxyType(pod),
       logs: await this.readFileContent(`${prefix}/istio-proxy.log`),
       certs: await this.readFileContent(`${prefix}/certs`),
       clusters: await this.readFileContent(`${prefix}/clusters`),
@@ -221,5 +231,55 @@ export class BugReportStore {
 
   getAllFiles(): string[] {
     return this.index.files.map((f) => f.relativePath);
+  }
+
+  detectDataPlaneMode(): DataPlaneModeInfo {
+    if (this.cachedModeInfo) return this.cachedModeInfo;
+
+    const allProxies = this.getProxyPods();
+    const hasZtunnel = allProxies.some((p) => p.proxyType === "ztunnel");
+    const hasWaypoints = allProxies.some((p) => p.proxyType === "waypoint");
+    const hasSidecars = allProxies.some((p) => p.proxyType === "sidecar");
+
+    // Check namespace labels for ambient mode
+    const namespaces = this.clusterResources.filter((r) => r.kind === "Namespace");
+    const ambientNamespaces = namespaces
+      .filter((ns) => ns.metadata?.labels?.["istio.io/dataplane-mode"] === "ambient")
+      .map((ns) => ns.metadata.name);
+
+    // Check for sidecar-injected namespaces (injection label or pods with sidecar status)
+    const sidecarNamespaces = new Set<string>();
+    for (const ns of namespaces) {
+      if (ns.metadata?.labels?.["istio-injection"] === "enabled") {
+        sidecarNamespaces.add(ns.metadata.name);
+      }
+    }
+    for (const proxy of allProxies) {
+      if (proxy.proxyType === "sidecar") {
+        sidecarNamespaces.add(proxy.namespace);
+      }
+    }
+
+    const hasAmbientSignals = hasZtunnel || hasWaypoints || ambientNamespaces.length > 0;
+
+    let mode: DataPlaneModeInfo["mode"];
+    if (hasAmbientSignals && hasSidecars) {
+      mode = "interop";
+    } else if (hasAmbientSignals) {
+      mode = "ambient";
+    } else {
+      mode = "sidecar";
+    }
+
+    this.cachedModeInfo = {
+      mode,
+      hasZtunnel,
+      hasWaypoints,
+      hasSidecars,
+      ambientNamespaces,
+      sidecarNamespaces: Array.from(sidecarNamespaces),
+    };
+
+    return this.cachedModeInfo;
   }
 }

@@ -39,6 +39,14 @@ Run these tools in sequence:
 4. `get_analyze_results` — capture istioctl analyze output (use `severity: "Error"` first, then `"Warning"` separately if needed)
 5. `find_errors` — scan all logs for errors/warnings
 
+**Data Plane Mode Detection:**
+The overview reports the detected data plane mode: `sidecar`, `ambient`, or `interop`.
+Record this mode — it governs which findings are relevant and which recommendations to make.
+
+- **sidecar**: Traditional mode. Sidecar CRDs, EnvoyFilters, injection labels (`istio-injection=enabled`) all apply.
+- **ambient**: No sidecars. Uses ztunnel (L4) and waypoint proxies (L7). Sidecar CRDs, EnvoyFilters, and injection labels do NOT apply. Uses `istio.io/dataplane-mode=ambient` namespace label. Gateway API resources for L7 policy.
+- **interop**: Mixed mode (Solo.io builds). Some namespaces use sidecars, others use ztunnel/waypoints. Recommendations must be scoped per-namespace based on their mode.
+
 Review the findings. Note the severity distribution (critical/high/warning/info).
 
 **Large archive handling:** If any tool returns truncated or very large results:
@@ -58,6 +66,25 @@ For each CRITICAL and HIGH finding, drill into only the specific pods/namespaces
 - If CRITICAL finding mentions single istiod → `get_istiod_debug` for that pod, `get_cluster_resources` for Deployment/HPA in istio-system
 - If HIGH finding mentions egress port mismatch → `get_cluster_resources` for Gateway + VirtualService in istio-system, `get_proxy_config` with `section: "listeners"` for the egress pod
 - Prefer `get_raw_file` only as a last resort when structured tools don't cover the data needed
+
+**Mode-Aware Investigation:**
+
+If mode is **ambient**:
+- Do NOT recommend Sidecar CRDs — they have no effect on ztunnel/waypoint proxies
+- Do NOT recommend `istio-injection=enabled` labels — ambient uses `istio.io/dataplane-mode=ambient`
+- Do NOT recommend EnvoyFilter — waypoint proxies use Gateway API for customization
+- DO check ztunnel logs for HBONE connectivity issues
+- DO check waypoint proxy health and Gateway API resource configuration
+- DO verify L4 AuthorizationPolicy placement at ztunnel level
+
+If mode is **interop**:
+- Identify which namespaces are ambient vs sidecar (from the overview output)
+- Apply sidecar-specific recommendations ONLY to sidecar namespaces
+- Apply ambient-specific checks ONLY to ambient namespaces
+- Check for cross-mode traffic issues (sidecar ↔ ambient)
+
+If mode is **sidecar**:
+- Standard analysis applies. Sidecar CRDs, EnvoyFilters, injection labels are all relevant.
 
 If Solo.io tools are available (soloio-docs-mcp, Support-Agent-Tools, SoloKnowledgeBaseMCP):
 - Use the enrichment hints from diagnostic findings to search for relevant documentation
@@ -82,6 +109,7 @@ Compose the assessment document following this structure:
 
 ### 2. Infrastructure Snapshot & Baseline
 - Cluster details, versions
+- Data Plane Mode (sidecar / ambient / interop) with per-namespace breakdown for interop
 - Node groups
 - Istio resource inventory (counts per kind)
 - Traffic flow descriptions (if inferable)
@@ -97,13 +125,20 @@ Same structure as critical.
 Group by IST code. Tables of affected resources. Specific remediation per finding.
 
 ### 6. Best Practices & Guard Rails
-Sidecar scoping, istiod replicas, proxy resources, gateway HA, injection strategy, mTLS.
+Mode-specific best practices:
+- **All modes**: istiod replicas, mTLS enforcement, gateway HA
+- **Sidecar mode**: Sidecar CRD scoping, proxy resource limits, injection strategy, EnvoyFilter hygiene
+- **Ambient mode**: waypoint proxy sizing and HA, L4 AuthorizationPolicy placement, Gateway API resource best practices, HBONE connectivity
+- **Interop mode**: namespace labeling consistency, cross-mode traffic patterns, migration path guidance
 
 ### 7. Remediation Roadmap
 Phased: Immediate → Cleanup → Overhaul → Maturity. Each step: action, effort, risk.
 
 ### 8. Looking Ahead
-Strategic recommendations: ambient mesh, Gateway API migration.
+Mode-aware strategic recommendations:
+- **Sidecar mode**: evaluate ambient mesh migration for L4-only workloads, Gateway API migration path
+- **Ambient mode**: waypoint deployment strategy for L7 needs, AuthorizationPolicy migration from Istio API to Gateway API
+- **Interop mode**: phased migration plan from sidecar to ambient per namespace, consolidation timeline
 
 Write the document to the specified file path. Present a brief summary to the user:
 
