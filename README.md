@@ -84,6 +84,12 @@ npm run build
 npx tsx src/index.ts
 ```
 
+## Releasing
+
+1. Update the version: `npm version patch|minor|major`
+2. Push the commit and tag: `git push origin main --tags`
+3. GitHub Actions builds, tests, and publishes to npm automatically
+
 ## License
 
 Apache-2.0
