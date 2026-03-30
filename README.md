@@ -20,6 +20,18 @@ npx istio-bug-report-analyzer-mcp@latest setup
 
 Then restart Claude Code. You're ready to go.
 
+## Updating
+
+The MCP server automatically uses the latest version from npm each time Claude Code starts — no action needed for server updates.
+
+To update the `/istio-report-assessment` skill (which lives locally on your machine), re-run setup:
+
+```bash
+npx istio-bug-report-analyzer-mcp@latest setup
+```
+
+Then restart Claude Code to pick up the new skill.
+
 ## Available Tools
 
 | Tool | Description |
