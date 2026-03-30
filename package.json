@@ -17,7 +17,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/nauticalmike/istio-bug-report-analyzer-mcp.git"
+    "url": "git+https://github.com/nauticalmike/istio-bug-report-analyzer-mcp.git"
   },
   "author": "Michael Acostamadiedo",
   "files": [

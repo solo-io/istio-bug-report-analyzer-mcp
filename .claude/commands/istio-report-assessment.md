@@ -36,18 +36,28 @@ Run these tools in sequence:
 1. `get_overview` — capture the cluster profile
 2. `get_versions` — capture the version matrix, check for skew
 3. `run_diagnostics` — run all diagnostic templates
-4. `get_analyze_results` — capture istioctl analyze output
+4. `get_analyze_results` — capture istioctl analyze output (use `severity: "Error"` first, then `"Warning"` separately if needed)
 5. `find_errors` — scan all logs for errors/warnings
 
 Review the findings. Note the severity distribution (critical/high/warning/info).
 
+**Large archive handling:** If any tool returns truncated or very large results:
+- For `get_analyze_results`: filter by `severity` (Error first, then Warning) or by specific `code` (e.g., IST0101)
+- For `find_errors`: filter by `component` (proxy, istiod, operator, cni) instead of "all"
+- Summarize patterns and counts rather than listing every instance (e.g., "4,000 IST0107 findings across ~500 Deployments" is more useful than listing each one)
+
 ## Phase 3: Deep Dive
 
-For each CRITICAL and HIGH finding:
-- Use `get_proxy_config` to inspect affected proxies
-- Use `get_logs` to check relevant log patterns
-- Use `get_istiod_debug` to examine control plane state (syncz, configz, push_status)
-- Use `get_cluster_resources` to check related K8s objects
+For each CRITICAL and HIGH finding, drill into only the specific pods/namespaces involved:
+- Use `get_proxy_config` with `section` filter (listeners, clusters, certs — not full config_dump) for affected proxies only
+- Use `get_logs` with `keyword` and `severity` filters, and `tail` to limit to recent entries
+- Use `get_istiod_debug` with specific `endpoint` (syncz, configz, push_status) — never request all endpoints at once
+- Use `get_cluster_resources` with `kind` + `namespace` + `name` filters to scope to specific resources
+
+**Large archive handling:** Do NOT pull all proxy configs or all logs upfront. Only query data directly related to a specific finding. For example:
+- If CRITICAL finding mentions single istiod → `get_istiod_debug` for that pod, `get_cluster_resources` for Deployment/HPA in istio-system
+- If HIGH finding mentions egress port mismatch → `get_cluster_resources` for Gateway + VirtualService in istio-system, `get_proxy_config` with `section: "listeners"` for the egress pod
+- Prefer `get_raw_file` only as a last resort when structured tools don't cover the data needed
 
 If Solo.io tools are available (soloio-docs-mcp, Support-Agent-Tools, SoloKnowledgeBaseMCP):
 - Use the enrichment hints from diagnostic findings to search for relevant documentation
